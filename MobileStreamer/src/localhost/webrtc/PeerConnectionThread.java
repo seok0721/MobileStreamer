@@ -63,8 +63,8 @@ public class PeerConnectionThread {
 
 		mPeerConnectionHandler = new PeerConnectionHandler();
 
-		mPeerConnectionFactory = new PeerConnectionFactory();
-		mPeerConnectionFactory.createPeerConnection(mIceServerList, mMediaConstraints, mPeerConnectionHandler);
+		// TODO remove this, mPeerConnectionFactory = new PeerConnectionFactory();
+		// TODO remove this, mPeerConnectionFactory.createPeerConnection(mIceServerList, mMediaConstraints, mPeerConnectionHandler);
 	}
 
 	// FIXME 여기는 여러 비디오가 들어갈 수 있도록 수정 요청

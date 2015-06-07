@@ -49,7 +49,7 @@ io.sockets.on('connection', function(socket) {
           message: 'already email exists.',
         });
       } else {
-        var sql = 'insert into tbl_user values (?, ?, md5(concat("prefix", ?)), ?)';
+        var sql = 'insert into tbl_user values (?, ?, ?, ?)';
 
         db.query(sql, [email, name, passwd, thumbnail], function(err, ret) {
           if (err) {
@@ -90,7 +90,7 @@ io.sockets.on('connection', function(socket) {
 
     var sql = ' select 1 from tbl_user' +
               '  where usr_id = ?' +
-              '    and passwd = md5(concat("prefix", ?))';
+              '    and passwd = ?';
 
     db.query(sql, [email, passwd], function(err, ret) {
       if (err) {

@@ -1,4 +1,4 @@
-package localhost.mobilestreamer.util;
+package localhost.activity.util;
 
 import android.app.Activity;
 import android.view.View;
