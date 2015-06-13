@@ -1,15 +1,15 @@
 package localhost.activity;
 
 import localhost.mobilestreamer.R;
+import localhost.webrtc.SocketEvent;
 import localhost.webrtc.SocketThread;
-import localhost.webrtc.WebrtcThread;
-import localhost.webrtc.WebrtcThread.OnConnectListener;
+import localhost.webrtc.SocketThread.EventListener;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Toast;
 
-public class SplashActivity extends Activity implements OnConnectListener {
+public class SplashActivity extends Activity implements EventListener {
 
 	private SocketThread socketThread = SocketThread.getInstance();
 
@@ -18,26 +18,32 @@ public class SplashActivity extends Activity implements OnConnectListener {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_splash);
 
+		socketThread.addListener(this);
 		socketThread.attachServer("http://192.168.0.2:4450");
-		socketThread.attachServer("http://192.168.1.24:4450");
-
-		// mWebrtcThread = WebrtcThread.getInstance();
-		// mWebrtcThread.setContext(getApplicationContext());
-		// mWebrtcThread.setOnConnectListener(this);
-		// mWebrtcThread.setHost("http://192.168.0.2:4450");
-		// mWebrtcThread.setHost("http://192.168.1.24:4450");
-		// mWebrtcThread.attachSignalingServer();
+		// socketThread.attachServer("http://192.168.1.24:4450");
 	}
 
 	@Override
-	public void onSuccess(int event) {
-		startActivity(new Intent(this, SignInActivity.class));
-		finish();
+	public void onListen(int event, int code, Object data) {
+		switch(event) {
+		case SocketEvent.MSG_ATTACH_SERVER:
+			onAttachServer(code);
+			break;
+		}
 	}
 
-	@Override
-	public void onFailure(int event, String message) {
-		Toast.makeText(this, "서버 접속에 실패했습니다.", Toast.LENGTH_SHORT).show();
-		finish();
+	private void onAttachServer(int result) {
+		socketThread.removeListener(this);
+
+		switch(result) {
+		case SocketEvent.SUCCESS:
+			startActivity(new Intent(this, SignInActivity.class));
+			finish();
+			break;
+		case SocketEvent.FAILURE:
+			Toast.makeText(this, "서버 접속에 실패했습니다.", Toast.LENGTH_SHORT).show();
+			finish();
+			break;
+		}
 	}
 }

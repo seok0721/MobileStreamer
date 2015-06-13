@@ -5,8 +5,9 @@ import java.net.URLEncoder;
 
 import localhost.activity.util.HashUtils;
 import localhost.mobilestreamer.R;
-import localhost.webrtc.WebrtcThread;
-import localhost.webrtc.WebrtcThread.OnSignUpListener;
+import localhost.webrtc.SocketEvent;
+import localhost.webrtc.SocketThread;
+import localhost.webrtc.SocketThread.EventListener;
 import android.app.Activity;
 import android.os.Bundle;
 import android.view.View;
@@ -15,9 +16,9 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
-public class SignUpActivity extends Activity implements OnClickListener, OnSignUpListener {
+public class SignUpActivity extends Activity implements OnClickListener, EventListener {
 
-	private WebrtcThread mWebrtcThread;
+	private SocketThread socketThread = SocketThread.getInstance();
 	private EditText edtEmail;
 	private EditText edtName;
 	private EditText edtPassword;
@@ -29,8 +30,7 @@ public class SignUpActivity extends Activity implements OnClickListener, OnSignU
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_sign_up);
 
-		mWebrtcThread = WebrtcThread.getInstance();
-		mWebrtcThread.setOnSignUpListener(this);
+		socketThread.addListener(this);
 
 		edtEmail = (EditText)findViewById(R.id.edtSignUpEmail);
 		edtName = (EditText)findViewById(R.id.edtSignUpName);
@@ -88,22 +88,30 @@ public class SignUpActivity extends Activity implements OnClickListener, OnSignU
 		try {
 			name = URLEncoder.encode(name, "utf-8");
 			password = HashUtils.md5("prefix" + password);
-			mWebrtcThread.signUp(email, name, password, null); // TODO add thumbnail image
+			socketThread.signUp(email, name, password, null); // TODO add base64 thumbnail image
 		} catch (UnsupportedEncodingException e) {
 			Toast.makeText(this, e.getMessage(), Toast.LENGTH_SHORT).show();
 		}
 	}
 
 	@Override
-	public void onSuccess(int event) {
-		Toast.makeText(this, "회원 가입이 완료되었습니다.", Toast.LENGTH_SHORT).show();
-		finish();
+	public void onListen(int event, int code, Object data) {
+		switch(event) {
+		case SocketEvent.MSG_SIGN_UP:
+			onSignUp(code, data);
+			break;
+		}
 	}
 
-	@Override
-	public void onFailure(int event, String message) {
-		Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+	private void onSignUp(int code, Object data) {
+		switch(code) {
+		case SocketEvent.SUCCESS:
+			Toast.makeText(this, "회원 가입이 완료되었습니다.", Toast.LENGTH_SHORT).show();
+			finish();
+			break;
+		case SocketEvent.FAILURE:
+			Toast.makeText(this, (String)data, Toast.LENGTH_SHORT).show();
+			break;
+		}
 	}
-
-
 }
