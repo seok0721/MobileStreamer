@@ -16,10 +16,10 @@ import android.widget.Toast;
 public class SignInActivity extends Activity implements OnSignInListener, OnClickListener {
 
 	private WebrtcThread mWebrtcThread;
-	private EditText edtEmail;
-	private EditText edtPassword;
-	private Button btnSignIn;
-	private Button btnNewAccount;
+	private EditText mEdtEmail;
+	private EditText mEdtPassword;
+	private Button mBtnSignIn;
+	private Button mBtnNewAccount;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -29,41 +29,42 @@ public class SignInActivity extends Activity implements OnSignInListener, OnClic
 		mWebrtcThread = WebrtcThread.getInstance();
 		mWebrtcThread.setOnSignInListener(this);
 
-		edtEmail = (EditText)findViewById(R.id.edtSignInEmail);
-		edtPassword = (EditText)findViewById(R.id.edtSignInPassword);
-		btnSignIn = (Button)findViewById(R.id.btnSignIn);
-		btnSignIn.setOnClickListener(this);
-		btnNewAccount = (Button)findViewById(R.id.btnNewAccount);
-		btnNewAccount.setOnClickListener(this);
+		mEdtEmail = (EditText)findViewById(R.id.edtSignInEmail);
+		mEdtPassword = (EditText)findViewById(R.id.edtSignInPassword);
+		mBtnSignIn = (Button)findViewById(R.id.btnSignIn);
+		mBtnSignIn.setOnClickListener(this);
+		mBtnNewAccount = (Button)findViewById(R.id.btnNewAccount);
+		mBtnNewAccount.setOnClickListener(this);
 	}
 
 	@Override
-	protected void onStart() {
+	public void onStart() {
 		super.onStart();
-		//		if(!mWebrtcThread.isConnected()) {
-		//			mWebrtcThread.attachSignalingServer();x
-		//		}
+
+		if(!mWebrtcThread.isConnected()) {
+			mWebrtcThread.attachSignalingServer();
+		}
 	}
 
 	@Override
-	protected void onStop() {
-		super.onStop();
-		//		if(mWebrtcThread.isConnected()) {
-		//			mWebrtcThread.detachSignalingServer();
-		//		}
+	public void onDestroy() {
+		super.onDestroy();
+
+		if(mWebrtcThread.isConnected()) {
+			mWebrtcThread.detachSignalingServer();
+		}
 	}
 
 	@Override
-	public void onSuccess() {
+	public void onSuccess(int event) {
 		Toast.makeText(this, "로그인 되었습니다.", Toast.LENGTH_SHORT).show();
-		startActivity(new Intent(this, MainActivity.class));
+		startActivity(new Intent(this, ShootingActivity.class));
 		finish();
 	}
 
 	@Override
-	public void onFailure(String message) {
+	public void onFailure(int event, String message) {
 		Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
-		finish();
 	}
 
 	@Override
@@ -74,22 +75,23 @@ public class SignInActivity extends Activity implements OnSignInListener, OnClic
 			break;
 		case R.id.btnNewAccount:
 			onClickBtnNewAccount(v);
+			break;
 		}
 	}
 
 	private void onClickBtnSignIn(View v) {
-		String email = edtEmail.getText().toString().trim();
-		String password = edtPassword.getText().toString().trim();
+		String email = mEdtEmail.getText().toString().trim();
+		String password = mEdtPassword.getText().toString().trim();
 
 		if(email.length() == 0) {
 			Toast.makeText(this, "이메일을 입력하세요.", Toast.LENGTH_SHORT).show();
-			edtEmail.selectAll();
+			mEdtEmail.selectAll();
 			return;
 		}
 
 		if(password.length() == 0) {
 			Toast.makeText(this, "비밀번호를 입력하세요.", Toast.LENGTH_SHORT).show();
-			edtPassword.selectAll();
+			mEdtPassword.selectAll();
 			return;
 		}
 

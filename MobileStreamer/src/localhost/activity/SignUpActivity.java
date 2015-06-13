@@ -95,13 +95,13 @@ public class SignUpActivity extends Activity implements OnClickListener, OnSignU
 	}
 
 	@Override
-	public void onSuccess() {
+	public void onSuccess(int event) {
 		Toast.makeText(this, "회원 가입이 완료되었습니다.", Toast.LENGTH_SHORT).show();
 		finish();
 	}
 
 	@Override
-	public void onFailure(String message) {
+	public void onFailure(int event, String message) {
 		Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
 	}
 

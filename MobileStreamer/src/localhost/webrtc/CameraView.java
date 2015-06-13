@@ -12,10 +12,6 @@ public class CameraView extends GLSurfaceView {
 
 	private Point screenSize = new Point();
 
-	public CameraView(Context context) {
-		super(context);
-	}
-
 	public CameraView(Context context, AttributeSet attr) {
 		super(context, attr);
 	}
