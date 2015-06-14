@@ -1,21 +1,27 @@
 package localhost.activity;
 
 import java.util.ArrayList;
-import java.util.List;
 
 import localhost.mobilestreamer.R;
 import localhost.webrtc.CameraView;
+import localhost.webrtc.PeerConnectionType;
+import localhost.webrtc.PeerConnectionWrapper;
 import localhost.webrtc.SocketEvent;
 import localhost.webrtc.SocketThread;
 import localhost.webrtc.SocketThread.EventListener;
 
+import org.json.JSONObject;
 import org.webrtc.AudioSource;
 import org.webrtc.AudioTrack;
 import org.webrtc.MediaConstraints;
 import org.webrtc.MediaConstraints.KeyValuePair;
 import org.webrtc.MediaStream;
+import org.webrtc.PeerConnection;
 import org.webrtc.PeerConnection.IceServer;
+import org.webrtc.PeerConnection.SignalingState;
 import org.webrtc.PeerConnectionFactory;
+import org.webrtc.SessionDescription;
+import org.webrtc.SessionDescription.Type;
 import org.webrtc.VideoCapturer;
 import org.webrtc.VideoRenderer;
 import org.webrtc.VideoRendererGui;
@@ -25,15 +31,16 @@ import org.webrtc.VideoTrack;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
-public class ShootingActivity extends Activity implements OnClickListener, EventListener{
+public class ShootingActivity extends Activity implements OnClickListener, EventListener {
 
-	private static final Object TAG = null;
+	private static final String TAG = ShootingActivity.class.getName();
 	private SocketThread socketThread = SocketThread.getInstance();
 	private EditText edtChannel;
 	private CameraView mCameraView;
@@ -43,11 +50,13 @@ public class ShootingActivity extends Activity implements OnClickListener, Event
 	private MediaStream mLocalStream;
 	private AudioSource mAudioSource;
 	private AudioTrack mAudioTrack;
-	private VideoRenderer mVideoRenderer;
 	private VideoCapturer mVideoCapturer;
 	private VideoSource mVideoSource;
 	private VideoTrack mVideoTrack;
 	private VideoRenderer.Callbacks[] renderers = new VideoRenderer.Callbacks[4];
+	private PeerConnectionWrapper[] connections = new PeerConnectionWrapper[4];
+	private ArrayList<IceServer> iceServerList;
+	private MediaConstraints mediaConstraints;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
@@ -76,11 +85,10 @@ public class ShootingActivity extends Activity implements OnClickListener, Event
 
 		// attach video renderer
 		VideoRendererGui.setView(mCameraView, new Runnable() {
-			
+
 			@Override
 			public void run() {
 				// TODO Auto-generated method stub
-				
 			}
 		});
 		mCameraView.initialize(this);
@@ -96,20 +104,24 @@ public class ShootingActivity extends Activity implements OnClickListener, Event
 		mLocalStream.addTrack(mAudioTrack);
 		mLocalStream.addTrack(mVideoTrack);
 
-		List<IceServer> iceServerList = new ArrayList<IceServer>();
+		iceServerList = new ArrayList<IceServer>();
 		iceServerList.add(new IceServer("stun:stun.l.google.com:19302"));
 
-		MediaConstraints mediaConstraints = new MediaConstraints();
-		mediaConstraints.optional.add(new KeyValuePair("DtlsSrtpKeyAgreement", "true"));	
+		mediaConstraints = new MediaConstraints();
+		mediaConstraints.optional.add(new KeyValuePair("DtlsSrtpKeyAgreement", "true"));
 
-		//		mWrappers = new PeerConnectionWrapper[4];
-		//		PeerConnectionFactory.initializeAndroidGlobals(this, true, true);
-		//		PeerConnectionFactory factory = new PeerConnectionFactory();
-		//		PeerConnectionBuilder builder = new PeerConnectionBuilder()
-		//		.setFactory(factory)
-		//		.setIceServers(iceServerList)
-		//		.setMediaConstraints(mediaConstraints)
-		//		.setType(PeerConnectionType.OFFERER);
+		for(int i = 0; i < connections.length; i++) {
+			connections[i] = new PeerConnectionWrapper();
+			PeerConnection conn = factory.createPeerConnection(iceServerList, mediaConstraints, connections[i]);
+			conn.updateIce(iceServerList, mediaConstraints);
+			if(i == 0) {
+				conn.addStream(mLocalStream);
+				connections[i].setType(PeerConnectionType.Offerer);
+			} else {
+				connections[i].setType(PeerConnectionType.Answerer);
+			}
+			connections[i].setConnection(conn);
+		}
 
 		socketThread.addListener(this);
 	}
@@ -150,6 +162,12 @@ public class ShootingActivity extends Activity implements OnClickListener, Event
 		case SocketEvent.MSG_ENTER_CHANNEL:
 			onEnterChannel(code, data);
 			break;
+		case SocketEvent.MSG_RECEIVE_OFFER:
+			onReceiveOffer(code, (JSONObject)data);
+			break;
+		case SocketEvent.MSG_RECEIVE_ANSWER:
+			onReceiveAnswer(code, (JSONObject)data);
+			break;
 		}
 	}
 
@@ -168,10 +186,58 @@ public class ShootingActivity extends Activity implements OnClickListener, Event
 		switch(code) {
 		case SocketEvent.SUCCESS:
 			Toast.makeText(this, "방에 접속하였습니다.", Toast.LENGTH_SHORT).show();
-			// TODO send offer
+			connections[0].getConnection().createOffer(connections[0], new MediaConstraints());
+			break;
 		case SocketEvent.FAILURE:
 			Toast.makeText(this, (String)data, Toast.LENGTH_SHORT).show();
 			break;
+		}
+	}
+
+	private void onReceiveOffer(int code, JSONObject data) {
+		try {
+			String socketId = data.getString("socketId");
+			String sdp = data.getString("sdp");
+
+			for(int i = 1; i < connections.length; i++) {
+				PeerConnection connection = connections[i].getConnection();
+
+				Log.i(TAG, connection.getLocalDescription() + "");
+				Log.i(TAG, connection.getRemoteDescription() + "");
+				Log.i(TAG, connection.signalingState().name() + "");
+
+				if(connection.getRemoteDescription() == null) {
+					connections[i].setSocketId(socketId);
+					SessionDescription session = new SessionDescription(Type.OFFER, sdp);
+					connection.setRemoteDescription(connections[i], session);
+					return;
+				}
+			}
+
+			throw new Exception("no connection available.");
+		} catch(Exception e) {
+			Log.e(TAG, e.getMessage(), e);
+		}
+	}
+
+	private void onReceiveAnswer(int code, JSONObject data) {
+		try {
+			String sdp = data.getString("sdp");
+
+			for(int i = 1; i < connections.length; i++) {
+				PeerConnection connection = connections[i].getConnection();
+
+				if(connection.signalingState() == SignalingState.HAVE_LOCAL_OFFER) {
+					SessionDescription session = new SessionDescription(Type.ANSWER, sdp);
+					connections[i].setSession(session);
+					connection.setRemoteDescription(connections[i], session);
+					return;
+				}
+			}
+
+			throw new Exception("no connection available.");
+		} catch(Exception e) {
+			Log.e(TAG, e.getMessage(), e);
 		}
 	}
 }

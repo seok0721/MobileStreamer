@@ -26,7 +26,5 @@ public class CameraView extends GLSurfaceView {
 	@Override
 	public void onAttachedToWindow() {
 		super.onAttachedToWindow();
-
-		//setSystemUiVisibility(SYSTEM_UI_FLAG_HIDE_NAVIGATION | SYSTEM_UI_FLAG_FULLSCREEN | SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
 	}
 }

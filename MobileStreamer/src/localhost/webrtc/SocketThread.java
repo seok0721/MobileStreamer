@@ -163,11 +163,11 @@ public class SocketThread {
 			case "leaveChannel":
 				handleMessage(SocketEvent.MSG_LEAVE_CHANNEL, (JSONObject)args[0]);
 				break;
-			case "receiveOffer":
-				eventHandler.obtainMessage(SocketEvent.MSG_SEND_OFFER, SocketEvent.SUCCESS, 0, (JSONObject)args[0]).sendToTarget();
+			case "offer":
+				eventHandler.obtainMessage(SocketEvent.MSG_RECEIVE_OFFER, SocketEvent.SUCCESS, 0, (JSONObject)args[0]).sendToTarget();
 				break;
-			case "receiveAnswer":
-				eventHandler.obtainMessage(SocketEvent.MSG_SEND_OFFER, SocketEvent.SUCCESS, 0, (JSONObject)args[0]).sendToTarget();
+			case "answer":
+				eventHandler.obtainMessage(SocketEvent.MSG_RECEIVE_ANSWER, SocketEvent.SUCCESS, 0, (JSONObject)args[0]).sendToTarget();
 				break;
 			default:
 				eventHandler.sendEmptyMessage(SocketEvent.MSG_UNKNOWN);
@@ -177,17 +177,20 @@ public class SocketThread {
 
 		@Override
 		public void onConnect() {
-			eventHandler.obtainMessage(SocketEvent.MSG_ATTACH_SERVER, SocketEvent.SUCCESS).sendToTarget();
+			Log.i(TAG, "onConnect");
+			eventHandler.obtainMessage(SocketEvent.MSG_ATTACH_SERVER, SocketEvent.SUCCESS, 0).sendToTarget();
 		}
 
 		@Override
 		public void onDisconnect() {
-			eventHandler.obtainMessage(SocketEvent.MSG_DETACH_SERVER, SocketEvent.SUCCESS).sendToTarget();
+			Log.i(TAG, "onDisconnect");
+			eventHandler.obtainMessage(SocketEvent.MSG_DETACH_SERVER, SocketEvent.SUCCESS, 0).sendToTarget();
 		}
 
 		@Override
 		public void onError(SocketIOException e) {
-			eventHandler.obtainMessage(SocketEvent.MSG_ATTACH_SERVER, SocketEvent.FAILURE).sendToTarget();
+			Log.i(TAG, "onError");
+			eventHandler.obtainMessage(SocketEvent.MSG_ATTACH_SERVER, SocketEvent.FAILURE, 0).sendToTarget();
 		}
 
 		@Override

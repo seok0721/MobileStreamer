@@ -7,6 +7,7 @@ import localhost.webrtc.SocketThread.EventListener;
 import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.Toast;
 
 public class SplashActivity extends Activity implements EventListener {
@@ -19,8 +20,8 @@ public class SplashActivity extends Activity implements EventListener {
 		setContentView(R.layout.activity_splash);
 
 		socketThread.addListener(this);
-		socketThread.attachServer("http://192.168.0.2:4450");
-		// socketThread.attachServer("http://192.168.1.24:4450");
+		// socketThread.attachServer("http://192.168.0.2:4450");
+		socketThread.attachServer("http://192.168.1.24:4450");
 	}
 
 	@Override
@@ -32,17 +33,19 @@ public class SplashActivity extends Activity implements EventListener {
 		}
 	}
 
-	private void onAttachServer(int result) {
+	private void onAttachServer(int code) {
 		socketThread.removeListener(this);
 
-		switch(result) {
+		switch(code) {
 		case SocketEvent.SUCCESS:
 			startActivity(new Intent(this, SignInActivity.class));
 			finish();
+			Log.i("", "SUCCESS");
 			break;
 		case SocketEvent.FAILURE:
 			Toast.makeText(this, "서버 접속에 실패했습니다.", Toast.LENGTH_SHORT).show();
 			finish();
+			Log.i("", "FAIL");
 			break;
 		}
 	}
