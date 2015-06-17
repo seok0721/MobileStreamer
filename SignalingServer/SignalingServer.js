@@ -8,7 +8,7 @@ var db = require('mysql').createConnection({
   database: 'stream',
 });
 
-var channels = {}; // { email : { title: '', users: ['', ...] }, ... }
+var socketMap = {}; // { email : { title: '', users: ['', ...] }, ... }
 var SUCCESS = 0;
 var FAILURE = -1;
 
@@ -108,6 +108,7 @@ io.sockets.on('connection', function(socket) {
         socket.emit('signIn', {
           code: SUCCESS,
           message: 'success to login.',
+          email: email,
         });
       }
     });
@@ -127,25 +128,92 @@ io.sockets.on('connection', function(socket) {
     }
   });
   socket.on('createChannel', function(data) {
-    var email = data.email;
-    var title = data.title;
-
-    if (socket.channel != null) {
-      // TODO already has channel
+    if (socket.email == null) {
+      socket.emit('createChannel', {
+        code: FAILURE,
+        message: 'not logged in.',
+      });
+    } else if (socket.hasChannel) {
+      socket.emit('createChannel', {
+        code: FAILURE,
+        message: 'already create channel.',
+      });
+    } else {
+      socketMap[socket.email] = socket;
+      socket.hasChannel = true;
+      socket.join(socket.email);
+      socket.emit('createChannel', {
+        code: SUCCESS,
+        message: 'success to create channel',
+      });
     }
-    // TODO
   });
-  socket.on('removeChannel', function(data) {
-    // TODO
+  socket.on('deleteChannel', function(data) {
+    if (socket.email == null) {
+      socket.emit('deleteChannel', {
+        code: FAILURE,
+        message: 'not logged in.',
+      });
+    } else if (!socket.hasChannel) {
+      socket.emit('deleteChannel', {
+        code: FAILURE,
+        message: 'not has channel.',
+      });
+    } else {
+      socket.broadcast.to(socket.email).emit({
+        code: SUCCESS,
+        message: 'delete channel.',
+      });
+      delete socketMap[socket.email];
+      socket.hasChannel = false;
+      socket.leave(socket.email);
+      socket.emit({
+        code: SUCCESS,
+        message: 'success to delete channel.',
+      });
+    }
   });
   socket.on('enterChannel', function(data) {
     var email = data.email;
-    var title = data.titie;
 
-    if (channels[email] == null) {
-      
+    if (socketMap[email] == null) {
+      socket.emit('enterChannel', {
+        code: FAILURE,
+        message: 'fail to enter channel.',
+      });
+    } else {
+      socket.join(email);
+      socket.channel = email;
+      socket.emit('enterChannel', {
+        code: SUCCESS,
+        message: 'success to enter channel.',
+      });
     }
   });
   socket.on('leaveChannel', function(data) {
+    socket.leave(socket.channel);
+    delete socket.channel;
+    socket.emit('leaveChannel', {
+      code: SUCCESS,
+      message: 'success to leave channel.',
+    });
+  });
+  socket.on('offer', function(data) {
+    var sdp = data.sdp;
+
+    socketMap[socket.channel].emit('offer', {
+      code: SUCCESS,
+      socketId: socket.id,
+      sdp: sdp,
+    });
+  });
+  socket.on('answer', function(data) {
+    var socketId = data.socketId;
+    var sdp = data.sdp;
+
+    socket.broadcast.to(socketId).emit('answer', {
+      code: SUCCESS,
+      sdp: sdp,
+    });
   });
 });
