@@ -20,7 +20,8 @@ public class CameraView extends GLSurfaceView {
 
 	@Override
 	public void onMeasure(int unusedX, int unusedY) {
-		setMeasuredDimension(screenSize.x, screenSize.y - 500);
+		// setMeasuredDimension(screenSize.x, screenSize.y - 500);
+		setMeasuredDimension(screenSize.x, screenSize.y);
 	}
 
 	@Override

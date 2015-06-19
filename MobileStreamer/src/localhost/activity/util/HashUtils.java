@@ -5,6 +5,7 @@ import java.security.NoSuchAlgorithmException;
 
 public class HashUtils {
 
+	// 입력 문자열을 MD5 해시한 결과를 리턴합니다.
 	public static final String md5(final String s) {
 		final String MD5 = "MD5";
 		try {
