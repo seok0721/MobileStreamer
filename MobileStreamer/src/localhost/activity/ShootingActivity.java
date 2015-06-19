@@ -53,8 +53,9 @@ public class ShootingActivity extends Activity implements OnClickListener, Event
 	private VideoCapturer mVideoCapturer;
 	private VideoSource mVideoSource;
 	private VideoTrack mVideoTrack;
-	private VideoRenderer.Callbacks[] renderers = new VideoRenderer.Callbacks[4];
-	private PeerConnectionWrapper[] connections = new PeerConnectionWrapper[4];
+	private VideoRenderer.Callbacks localRenderer;
+	private VideoRenderer.Callbacks[] renderers = new VideoRenderer.Callbacks[3];
+	private PeerConnectionWrapper[] connections = new PeerConnectionWrapper[3];
 	private ArrayList<IceServer> iceServerList;
 	private MediaConstraints mediaConstraints;
 
@@ -93,12 +94,12 @@ public class ShootingActivity extends Activity implements OnClickListener, Event
 		});
 		mCameraView.initialize(this);
 
-		renderers[0] = VideoRendererGui.create(2, 2, 47, 40, ScalingType.SCALE_FILL, true);
+		localRenderer = VideoRendererGui.create(2, 2, 47, 40, ScalingType.SCALE_FILL, true);
+		renderers[0] = VideoRendererGui.create(51, 2, 47, 40, ScalingType.SCALE_FILL, true);
 		renderers[1] = VideoRendererGui.create(2, 44, 47, 40, ScalingType.SCALE_FILL, true);
-		renderers[2] = VideoRendererGui.create(51, 2, 47, 40, ScalingType.SCALE_FILL, true);
-		renderers[3] = VideoRendererGui.create(51, 44, 47, 40, ScalingType.SCALE_FILL, true);
+		renderers[2] = VideoRendererGui.create(51, 44, 47, 40, ScalingType.SCALE_FILL, true);
 
-		mVideoTrack.addRenderer(new VideoRenderer(renderers[0]));
+		mVideoTrack.addRenderer(new VideoRenderer(localRenderer));
 
 		// add track to local stream
 		mLocalStream.addTrack(mAudioTrack);
@@ -106,21 +107,31 @@ public class ShootingActivity extends Activity implements OnClickListener, Event
 
 		iceServerList = new ArrayList<IceServer>();
 		iceServerList.add(new IceServer("stun:stun.l.google.com:19302"));
+		//iceServerList.add(new IceServer("stun:52.68.193.86"));
+		//iceServerList.add(new IceServer("stun:172.27.34.228"));
+		//iceServerList.add(new IceServer("turn:172.27.34.228"));
+		//iceServerList.add(new IceServer("stun:stun1.l.google.com:19302"));
+		//iceServerList.add(new IceServer("stun:stun2.l.google.com:19302"));
+		//iceServerList.add(new IceServer("stun:stun3.l.google.com:19302"));
+		//iceServerList.add(new IceServer("stun:stun4.l.google.com:19302"));
 
 		mediaConstraints = new MediaConstraints();
 		mediaConstraints.optional.add(new KeyValuePair("DtlsSrtpKeyAgreement", "true"));
 
 		for(int i = 0; i < connections.length; i++) {
 			connections[i] = new PeerConnectionWrapper();
-			PeerConnection conn = factory.createPeerConnection(iceServerList, mediaConstraints, connections[i]);
-			conn.updateIce(iceServerList, mediaConstraints);
+			PeerConnection connection = factory.createPeerConnection(iceServerList, mediaConstraints, connections[i]);
+			connection.addStream(mLocalStream);
+			/*
 			if(i == 0) {
-				conn.addStream(mLocalStream);
+				connection.addStream(mLocalStream);
 				connections[i].setType(PeerConnectionType.Offerer);
 			} else {
 				connections[i].setType(PeerConnectionType.Answerer);
 			}
-			connections[i].setConnection(conn);
+			 */
+			connections[i].setConnection(connection);
+			connections[i].setRenderer(renderers[i]);
 		}
 
 		socketThread.addListener(this);
@@ -133,7 +144,7 @@ public class ShootingActivity extends Activity implements OnClickListener, Event
 			onClickBtnEnterChannel(v);
 			break;
 		case R.id.btnCreateChannel:
-			onClickBtnCreateChannel(v);
+			onClickBtnCreateChannel(v);	
 			break;
 		}
 	}
@@ -186,7 +197,16 @@ public class ShootingActivity extends Activity implements OnClickListener, Event
 		switch(code) {
 		case SocketEvent.SUCCESS:
 			Toast.makeText(this, "방에 접속하였습니다.", Toast.LENGTH_SHORT).show();
-			connections[0].getConnection().createOffer(connections[0], new MediaConstraints());
+			for(int i = 0; i < connections.length; i++) {
+				PeerConnection connection = connections[0].getConnection();
+
+				if(connection.getLocalDescription() == null && connection.getRemoteDescription() == null) {
+					connections[0].setType(PeerConnectionType.Offerer);
+					// connection.addStream(mLocalStream);
+					connection.createOffer(connections[0], new MediaConstraints());
+					return;
+				}
+			}
 			break;
 		case SocketEvent.FAILURE:
 			Toast.makeText(this, (String)data, Toast.LENGTH_SHORT).show();
@@ -199,16 +219,15 @@ public class ShootingActivity extends Activity implements OnClickListener, Event
 			String socketId = data.getString("socketId");
 			String sdp = data.getString("sdp");
 
-			for(int i = 1; i < connections.length; i++) {
+			for(int i = 0; i < connections.length; i++) {
 				PeerConnection connection = connections[i].getConnection();
 
-				Log.i(TAG, connection.getLocalDescription() + "");
-				Log.i(TAG, connection.getRemoteDescription() + "");
-				Log.i(TAG, connection.signalingState().name() + "");
-
-				if(connection.getRemoteDescription() == null) {
-					connections[i].setSocketId(socketId);
+				if(connection.getLocalDescription() == null && connection.getRemoteDescription() == null) {
+					// connection.addStream(mLocalStream);
 					SessionDescription session = new SessionDescription(Type.OFFER, sdp);
+					connections[i].setType(PeerConnectionType.Answerer);
+					connections[i].setSocketId(socketId);
+					connections[i].setSession(session);
 					connection.setRemoteDescription(connections[i], session);
 					return;
 				}
@@ -224,8 +243,15 @@ public class ShootingActivity extends Activity implements OnClickListener, Event
 		try {
 			String sdp = data.getString("sdp");
 
-			for(int i = 1; i < connections.length; i++) {
+			Log.i(TAG, "connectin count: " + connections.length);
+
+			for(int i = 0; i < connections.length; i++) {
 				PeerConnection connection = connections[i].getConnection();
+
+				Log.i(TAG, connection + "");
+				Log.i(TAG, connection.getLocalDescription() + "");
+				Log.i(TAG, connection.getRemoteDescription() + "");
+				Log.i(TAG, connection.signalingState().name() + "");
 
 				if(connection.signalingState() == SignalingState.HAVE_LOCAL_OFFER) {
 					SessionDescription session = new SessionDescription(Type.ANSWER, sdp);

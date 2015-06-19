@@ -21,7 +21,9 @@ public class SplashActivity extends Activity implements EventListener {
 
 		socketThread.addListener(this);
 		// socketThread.attachServer("http://192.168.0.2:4450");
-		socketThread.attachServer("http://192.168.1.24:4450");
+		socketThread.attachServer("http://172.27.34.228:4450");
+		// 172.27.34.228
+		//socketThread.attachServer("http://192.168.1.24:4450");
 	}
 
 	@Override

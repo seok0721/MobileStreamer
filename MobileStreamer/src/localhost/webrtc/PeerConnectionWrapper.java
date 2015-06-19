@@ -7,6 +7,7 @@ import org.webrtc.MediaStream;
 import org.webrtc.PeerConnection;
 import org.webrtc.SdpObserver;
 import org.webrtc.SessionDescription;
+import org.webrtc.VideoRenderer;
 import org.webrtc.PeerConnection.IceConnectionState;
 import org.webrtc.PeerConnection.IceGatheringState;
 import org.webrtc.PeerConnection.Observer;
@@ -23,6 +24,7 @@ public class PeerConnectionWrapper implements SdpObserver, Observer {
 	private PeerConnectionType type;
 	private SessionDescription session;
 	private String socketId;
+	private VideoRenderer.Callbacks renderer;
 
 	public void setConnection(PeerConnection connection) {
 		this.connection = connection;
@@ -38,6 +40,14 @@ public class PeerConnectionWrapper implements SdpObserver, Observer {
 
 	public void setType(PeerConnectionType type) {
 		this.type = type;
+	}
+
+	public VideoRenderer.Callbacks getRenderer() {
+		return renderer;
+	}
+
+	public void setRenderer(VideoRenderer.Callbacks renderer) {
+		this.renderer = renderer;
 	}
 
 	public SessionDescription getSession() {
@@ -68,11 +78,10 @@ public class PeerConnectionWrapper implements SdpObserver, Observer {
 		Log.i(TAG, "onCreateSuccess");
 		this.session = session;
 		switch(type) {
-		case Offerer:
+		case Offerer: // same same
 			connection.setLocalDescription(this, session);
 			break;
-		case Answerer:
-			this.session = session;
+		case Answerer: // same same
 			connection.setLocalDescription(this, session);
 			break;
 		}
@@ -85,10 +94,17 @@ public class PeerConnectionWrapper implements SdpObserver, Observer {
 
 	@Override
 	public void onSetSuccess() {
+		Log.i(TAG, "onSetSuccess");
+		Log.i(TAG, type.name());
+
 		switch(type) {
 		case Offerer:
 			if(session.type == Type.OFFER) { // set local offer
-				socketThread.sendOffer(session.description);
+				Log.i(TAG, "Offerer");
+				Log.i(TAG, connection.getLocalDescription() + "");
+				Log.i(TAG, connection.getRemoteDescription() + "");
+				// TODO Error!!
+				// socketThread.sendOffer(session.description);
 			}
 			// nothing after set remote offer
 			break;
@@ -102,7 +118,8 @@ public class PeerConnectionWrapper implements SdpObserver, Observer {
 
 	@Override
 	public void onAddStream(MediaStream media) {
-		Log.i(TAG, "onAddStream");
+		Log.i(TAG, "onAddStream, " + media.videoTracks.size());
+		media.videoTracks.get(0).addRenderer(new VideoRenderer(renderer));
 	}
 
 	@Override
@@ -112,26 +129,36 @@ public class PeerConnectionWrapper implements SdpObserver, Observer {
 
 	@Override
 	public void onIceCandidate(IceCandidate iceCadidate) {
-		Log.i(TAG, "onIceCandidate");
+		Log.i(TAG, "onIceCandidate, " + iceCadidate.sdp);
 		connection.addIceCandidate(iceCadidate);
 	}
 
 	@Override
 	public void onIceConnectionChange(IceConnectionState state) {
-		Log.i(TAG, "onIceConnectionChange");
+		Log.i(TAG, "onIceConnectionChange, " + state.name());
 	}
 
 	@Override
 	public void onIceGatheringChange(IceGatheringState state) {
-		Log.i(TAG, "onIceGatheringChange");
-		if(state == IceGatheringState.COMPLETE && connection.signalingState() == SignalingState.STABLE) {
-			socketThread.sendAnswer(socketId, session.description);
+		Log.i(TAG, "onIceGatheringChange, " + state.name());
+		switch(type) {
+		case Offerer:
+			if(state == IceGatheringState.COMPLETE && connection.signalingState() == SignalingState.HAVE_LOCAL_OFFER) {
+				socketThread.sendOffer(connection.getLocalDescription().description);
+			}
+			break;
+		case Answerer:
+			if(state == IceGatheringState.COMPLETE && connection.signalingState() == SignalingState.STABLE) {
+				socketThread.sendAnswer(socketId, connection.getLocalDescription().description);
+			}
+			break;
 		}
 	}
 
 	@Override
-	public void onRemoveStream(MediaStream arg0) {
+	public void onRemoveStream(MediaStream media) {
 		Log.i(TAG, "onRemoveStream");
+		connection.removeStream(media);
 	}
 
 	@Override
@@ -140,7 +167,18 @@ public class PeerConnectionWrapper implements SdpObserver, Observer {
 	}
 
 	@Override
-	public void onSignalingChange(SignalingState arg0) {
-		Log.i(TAG, "onSignalingChange");
+	public void onSignalingChange(SignalingState state) {
+		Log.i(TAG, "onSignalingChange, " + state.name());
+		/*
+		switch(type) {
+		case Answerer:
+			if(state == SignalingState.STABLE) {
+				socketThread.sendAnswer(socketId, connection.getLocalDescription().description);
+			}
+			break;
+		case Offerer:
+			break;
+		}
+		 */
 	}
 }
