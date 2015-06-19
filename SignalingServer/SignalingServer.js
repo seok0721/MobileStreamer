@@ -8,12 +8,15 @@ var db = require('mysql').createConnection({
   database: 'stream',
 });
 
-var socketMap = {}; // { email : { title: '', users: ['', ...] }, ... }
+var channelMap = {}; // { 'socket.email': socket }, only used to check room
+var socketMap = {}; // { 'socket.id': socket }
 var SUCCESS = 0;
 var FAILURE = -1;
 
 db.connect();
 io.sockets.on('connection', function(socket) {
+  socketMap[socket.id] = socket;
+
   socket.on('signUp', function(data) {
     var email = data.email;
     var name = data.name;
@@ -139,7 +142,7 @@ io.sockets.on('connection', function(socket) {
         message: 'already create channel.',
       });
     } else {
-      socketMap[socket.email] = socket;
+      channelMap[socket.email] = socket;
       socket.hasChannel = true;
       socket.join(socket.email);
       socket.emit('createChannel', {
@@ -164,7 +167,7 @@ io.sockets.on('connection', function(socket) {
         code: SUCCESS,
         message: 'delete channel.',
       });
-      delete socketMap[socket.email];
+      delete channelMap[socket.email];
       socket.hasChannel = false;
       socket.leave(socket.email);
       socket.emit({
@@ -175,8 +178,9 @@ io.sockets.on('connection', function(socket) {
   });
   socket.on('enterChannel', function(data) {
     var email = data.email;
+    var title = email;
 
-    if (socketMap[email] == null) {
+    if (channelMap[email] == null) {
       socket.emit('enterChannel', {
         code: FAILURE,
         message: 'fail to enter channel.',
@@ -201,7 +205,7 @@ io.sockets.on('connection', function(socket) {
   socket.on('offer', function(data) {
     var sdp = data.sdp;
 
-    socketMap[socket.channel].emit('offer', {
+    socket.broadcast.to(socket.channel).emit('offer', {
       code: SUCCESS,
       socketId: socket.id,
       sdp: sdp,
@@ -211,9 +215,12 @@ io.sockets.on('connection', function(socket) {
     var socketId = data.socketId;
     var sdp = data.sdp;
 
-    socket.broadcast.to(socketId).emit('answer', {
+    socketMap[socketId].emit('answer', {
       code: SUCCESS,
       sdp: sdp,
     });
+  });
+  socket.on('disconnect', function() {
+    delete socketMap[socket.id];
   });
 });
