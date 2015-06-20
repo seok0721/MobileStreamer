@@ -1,24 +1,31 @@
 package localhost.webrtc;
 
+import java.util.List;
+
 import org.webrtc.DataChannel;
 import org.webrtc.IceCandidate;
 import org.webrtc.MediaConstraints;
 import org.webrtc.MediaStream;
 import org.webrtc.PeerConnection;
-import org.webrtc.SdpObserver;
-import org.webrtc.SessionDescription;
-import org.webrtc.VideoRenderer;
 import org.webrtc.PeerConnection.IceConnectionState;
 import org.webrtc.PeerConnection.IceGatheringState;
+import org.webrtc.PeerConnection.IceServer;
 import org.webrtc.PeerConnection.Observer;
 import org.webrtc.PeerConnection.SignalingState;
+import org.webrtc.PeerConnectionFactory;
+import org.webrtc.SdpObserver;
+import org.webrtc.SessionDescription;
 import org.webrtc.SessionDescription.Type;
+import org.webrtc.VideoRenderer;
 
 import android.util.Log;
 
 public class PeerConnectionWrapper implements SdpObserver, Observer {
 
+	public static SessionDescription offerSession;
+
 	private static final String TAG = PeerConnectionWrapper.class.getName();
+	private PeerConnectionFactory factory;
 	private SocketThread socketThread = SocketThread.getInstance();
 	private PeerConnection connection;
 	private PeerConnectionType type;
@@ -26,6 +33,41 @@ public class PeerConnectionWrapper implements SdpObserver, Observer {
 	private String socketId;
 	private VideoRenderer.Callbacks renderer;
 	private MediaStream localStream;
+	private MediaStream remoteStream;
+	private List<IceServer> iceServerList;
+	private MediaConstraints constraints;
+
+	public MediaConstraints getConstraints() {
+		return constraints;
+	}
+
+	public void setConstraints(MediaConstraints constraints) {
+		this.constraints = constraints;
+	}
+
+	public List<IceServer> getIceServerList() {
+		return iceServerList;
+	}
+
+	public void setIceServerList(List<IceServer> iceServerList) {
+		this.iceServerList = iceServerList;
+	}
+
+	public PeerConnectionFactory getFactory() {
+		return factory;
+	}
+
+	public void setFactory(PeerConnectionFactory factory) {
+		this.factory = factory;
+	}
+
+	public SessionDescription getSession() {
+		return session;
+	}
+
+	public void setSession(SessionDescription session) {
+		this.session = session;
+	}
 
 	public MediaStream getLocalStream() {
 		return localStream;
@@ -83,12 +125,15 @@ public class PeerConnectionWrapper implements SdpObserver, Observer {
 		case Answerer: // 응답자도 앤서(로컬스트림정보)를 생성하면 로컬 커넥션에 바로 설장합니다.
 			connection.setLocalDescription(this, session);
 			break;
+		case Waiter:
+			connection.setLocalDescription(this, session);
+			break;
 		}
 	}
 
 	@Override
 	public void onSetFailure(String error) {
-		Log.i(TAG, "onSetFailure"); // 라이브러리에서 생성하는 정보를 그대로 사용해서 에러가 나지 않았습니다.
+		Log.i(TAG, "onSetFailure, " + error); // 라이브러리에서 생성하는 정보를 그대로 사용해서 에러가 나지 않았습니다.
 	}
 
 	@Override
@@ -110,13 +155,18 @@ public class PeerConnectionWrapper implements SdpObserver, Observer {
 				// 응답자가 로컬 스트림 세션을 설정하면 NAT Traversal을 하기 때문에 아래에 있는 onIceGatheringChange 이벤트 발생을 대기합니다.
 			}
 			break;
+		case Waiter:
+			if(connection.getRemoteDescription() == null) {
+				connection.setRemoteDescription(this, session);
+			}
+			break;
 		}
 	}
 
 	@Override
 	public void onAddStream(MediaStream media) {
 		Log.i(TAG, "onAddStream, " + media.videoTracks.size());
-
+		remoteStream = media;
 		// 원격지에서 비디오/오디오 스트림을 받아옵니다.
 		// 현재 스트림은 하나씩만 사용하기 때문에 인덱스 0만 추가합니다. 
 		media.videoTracks.get(0).addRenderer(new VideoRenderer(renderer));
@@ -137,6 +187,24 @@ public class PeerConnectionWrapper implements SdpObserver, Observer {
 	@Override
 	public void onIceConnectionChange(IceConnectionState state) {
 		Log.i(TAG, "onIceConnectionChange, " + state.name());
+
+		if(state == IceConnectionState.DISCONNECTED) {
+			//connection.
+			/*
+			for(int i = 0; i < remoteStream.audioTracks.size(); i++) {
+				remoteStream.removeTrack(remoteStream.audioTracks.get(i));
+			}
+
+			for(int i = 0; i < remoteStream.videoTracks.size(); i++) {
+				remoteStream.removeTrack(remoteStream.videoTracks.get(i));
+			}
+
+			connection.removeStream(remoteStream);
+			connection.close();
+			 */
+
+			connection = factory.createPeerConnection(iceServerList, constraints, this);
+		}
 	}
 
 	/**
@@ -153,6 +221,7 @@ public class PeerConnectionWrapper implements SdpObserver, Observer {
 			// 요청자가 공인아이피 주소와 중개 서버 주소를 모두 수집하였고
 			// 현재 로컬 세션을 가지고 있으면 스트림 송/수신 요청을 전송합니다.
 			if(state == IceGatheringState.COMPLETE && connection.signalingState() == SignalingState.HAVE_LOCAL_OFFER) {
+				offerSession = connection.getLocalDescription();
 				socketThread.sendOffer(connection.getLocalDescription().description);
 			}
 			break;
@@ -163,6 +232,8 @@ public class PeerConnectionWrapper implements SdpObserver, Observer {
 				socketThread.sendAnswer(socketId, connection.getLocalDescription().description);
 			}
 			break;
+		case Waiter:
+			break;
 		}
 	}
 
@@ -170,7 +241,7 @@ public class PeerConnectionWrapper implements SdpObserver, Observer {
 	public void onRemoveStream(MediaStream media) {
 		Log.i(TAG, "onRemoveStream");
 		// TODO 처리하기
-		connection.removeStream(media);
+		// connection.removeStream(media);
 	}
 
 	@Override

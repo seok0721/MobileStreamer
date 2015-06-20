@@ -123,6 +123,8 @@ public class ShootingActivity extends Activity implements OnClickListener, Event
 	 */
 	private MediaConstraints mediaConstraints;
 
+	private Object mLock = new Object();
+
 	/**
 	 * 슈팅 액티비티를 초기화 합니다.
 	 * 
@@ -201,10 +203,24 @@ public class ShootingActivity extends Activity implements OnClickListener, Event
 			connections[i].setConnection(connection); // 콜백 함수에 커넥션 등록
 			connections[i].setRenderer(remoteRenderers[i]); // 콜백 함수에 렌더러 등록
 			connections[i].setLocalStream(mLocalStream);
+			connections[i].setFactory(factory);
+			connections[i].setIceServerList(iceServerList);
+			connections[i].setConstraints(mediaConstraints);
 		}
 
 		// 현재 액티비티를 이벤트 리스너로 추가합니다.
 		socketThread.addListener(this);
+	}
+
+	@Override
+	protected void onDestroy() {
+		super.onDestroy();
+
+		for(int i = 0; i < connections.length; i++) {
+			connections[i].getConnection().close();
+		}
+
+		SocketThread.getInstance().detachServer();
 	}
 
 	/**
@@ -301,7 +317,7 @@ public class ShootingActivity extends Activity implements OnClickListener, Event
 					// 방에 접속하자마자 원격 사용자들에게 스트림 수신 요청을 보내기 때문에 타입은 "요청자"입니다.
 					connections[0].setType(PeerConnectionType.Offerer);
 					// 원격 사용자들에게 보낼 로컬 스트림 정보를 생성합니다.
-					connection.createOffer(connections[0], new MediaConstraints());
+					connection.createOffer(connections[i], new MediaConstraints());
 					return;
 				}
 			}
@@ -334,6 +350,7 @@ public class ShootingActivity extends Activity implements OnClickListener, Event
 					SessionDescription session = new SessionDescription(Type.OFFER, sdp);
 					connections[i].setType(PeerConnectionType.Answerer); // 요청자의 요청에 "응답"을 하는 것이기 때문에 커넥션은 "응답자"가 됩니다.
 					connections[i].setSocketId(socketId); // 요청자의 소켓 아이디를 설정합니다.
+					connections[i].setSession(session);
 					connection.setRemoteDescription(connections[i], session); // 요청자가 보낸 디스크립션을 설정합니다.
 					return;
 				}
@@ -352,23 +369,44 @@ public class ShootingActivity extends Activity implements OnClickListener, Event
 	 * @param data 응답자의 스트림 정보인 SDP(Session Description Protocol)를 수신받습니다.
 	 */
 	private void onReceiveAnswer(int code, JSONObject data) {
+		Log.i(TAG, "handle answer");
+		boolean isSuccess = false;
 		try {
 			String sdp = data.getString("sdp");
 
 			// 요청자의 커넥션을 찾습니다.
-			for(int i = 0; i < connections.length; i++) {
-				PeerConnection connection = connections[i].getConnection();
+			synchronized(mLock) {
+				for(int i = 0; i < connections.length; i++) {
+					PeerConnection connection = connections[i].getConnection();
+					boolean isWaiter = (connection.getLocalDescription() == null && connection.getRemoteDescription() == null);
+					// 요청자의 커넥션의 상태는 "로컬 요청을 가지고 있음" 입니다.
 
-				// 요청자의 커넥션의 상태는 "로컬 요청을 가지고 있음" 입니다.
-				if(connection.signalingState() == SignalingState.HAVE_LOCAL_OFFER) {
-					// 응답자가 보낸 스트림 정보이기 때문에 타입은 "ANSWER" 입니다.
-					SessionDescription session = new SessionDescription(Type.ANSWER, sdp);
-					connection.setRemoteDescription(connections[i], session); // 응답자의 세션을 설정해서 연결을 완료시킵니다. 
-					return;
+					// 같은 방에서 다른 사용자에게 응답을 받은 경우
+					if(isWaiter) {
+						SessionDescription session = new SessionDescription(Type.ANSWER, sdp);
+						connections[i].setType(PeerConnectionType.Waiter);
+						connections[i].setSession(session);
+						connection.setLocalDescription(connections[i], PeerConnectionWrapper.offerSession);
+						//connection.createOffer(connections[i], new MediaConstraints());
+						//connection.setRemoteDescription(connections[i], session); // 응답자의 세션을 설정해서 연결을 완료시킵니다.
+						isSuccess = true;
+						break;
+					}
+
+					if(connection.signalingState() == SignalingState.HAVE_LOCAL_OFFER) {
+						// 응답자가 보낸 스트림 정보이기 때문에 타입은 "ANSWER" 입니다.
+						SessionDescription session = new SessionDescription(Type.ANSWER, sdp);
+						connections[i].setSession(session);
+						connection.setRemoteDescription(connections[i], session); // 응답자의 세션을 설정해서 연결을 완료시킵니다.
+						isSuccess = true;
+						break;
+					}
 				}
 			}
 
-			throw new Exception("사용 가능한 커넥션이 없습니다.");
+			if(!isSuccess) {
+				throw new Exception("사용 가능한 커넥션이 없습니다.");
+			}
 		} catch(Exception e) {
 			Log.e(TAG, e.getMessage(), e);
 		}

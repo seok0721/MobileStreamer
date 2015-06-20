@@ -250,6 +250,12 @@ public class SocketThread {
 				eventHandler.obtainMessage(SocketEvent.MSG_RECEIVE_OFFER, SocketEvent.SUCCESS, 0, (JSONObject)args[0]).sendToTarget();
 				break;
 			case "answer":
+				//Message msg = new Message();
+				//msg.what = SocketEvent.MSG_RECEIVE_ANSWER;
+				//msg.arg1 = SocketEvent.SUCCESS;
+				//msg.obj = (JSONObject)args[0];
+				//eventHandler.sendMessage(msg);
+				Log.i(TAG, "receive answer");
 				eventHandler.obtainMessage(SocketEvent.MSG_RECEIVE_ANSWER, SocketEvent.SUCCESS, 0, (JSONObject)args[0]).sendToTarget();
 				break;
 			default:

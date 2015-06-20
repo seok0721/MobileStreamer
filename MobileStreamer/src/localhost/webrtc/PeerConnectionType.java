@@ -11,5 +11,9 @@ public enum PeerConnectionType {
 	/**
 	 * 응답자 타입
 	 */
-	Answerer
+	Answerer,
+	/**
+	 * 대기자 타입
+	 */
+	Waiter
 }

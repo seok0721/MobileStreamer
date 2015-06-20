@@ -14,6 +14,14 @@ var SUCCESS = 0;
 var FAILURE = -1;
 
 db.connect();
+
+/*
+db.query('select * from tbl_user where usr_id is null', function(err, ret) {
+  console.log(ret.length);
+  console.log(ret);
+});
+*/
+
 io.sockets.on('connection', function(socket) {
   socketMap[socket.id] = socket;
 
@@ -216,6 +224,7 @@ io.sockets.on('connection', function(socket) {
     var sdp = data.sdp;
 
     socketMap[socketId].emit('answer', {
+      socketId: socket.id,
       code: SUCCESS,
       sdp: sdp,
     });
