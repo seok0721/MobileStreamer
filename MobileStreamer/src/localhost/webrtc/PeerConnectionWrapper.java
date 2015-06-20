@@ -141,14 +141,14 @@ public class PeerConnectionWrapper implements SdpObserver, Observer {
 		Log.i(TAG, "onSetSuccess");
 		switch(type) {
 		case Offerer:
-			if(session.type == Type.OFFER) {
+			if(connection.getLocalDescription().type == Type.OFFER) {
 				// 요청자가 로컬 스트림 세션을 설정하면 NAT Traversal을 하기 때문에 아래에 있는 onIceGatheringChange 이벤트 발생을 대기합니다.
 			} else {
 				// 요청자가 원격 스트림 세션을 설정하면 연결이 완료된 것이기 때문에 아무것도 하지 않습니다.
 			}
 			break;
 		case Answerer:
-			if(session.type == Type.OFFER) {
+			if(connection.getLocalDescription().type == Type.OFFER) {
 				// 응답자가 원격 스트림 세션을 설정하면 응답에 사용할 세션을 생성합니다.
 				connection.createAnswer(this, new MediaConstraints());
 			} else {
